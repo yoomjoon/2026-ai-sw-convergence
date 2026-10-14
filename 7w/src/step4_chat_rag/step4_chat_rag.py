@@ -1,4 +1,3 @@
-```python
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
@@ -13,28 +12,40 @@ from langchain_ollama import ChatOllama
 
 CURRENT_DIR = Path(__file__).resolve().parent
 
-DATA_DIR = (
-    CURRENT_DIR.parent
-    / "6w"
-    / "data"
-)
+# step4_chat_rag -> src -> 7w -> 저장소 루트
+SEVEN_W_DIR = CURRENT_DIR.parents[1]
+REPO_ROOT = CURRENT_DIR.parents[2]
 
-pdf_files = sorted(
-    DATA_DIR.glob("공지*.pdf")
-)
+# PDF를 찾을 후보 폴더 (위에서부터 순서대로 확인)
+CANDIDATE_DIRS = [
+    REPO_ROOT / "6w" / "data",
+    SEVEN_W_DIR / "data",
+]
+
+pdf_files = []
+
+for folder in CANDIDATE_DIRS:
+    files = sorted(folder.glob("공지*.pdf"))
+    if files:
+        pdf_files = files
+        break
+
+if not pdf_files:
+    checked = "\n".join(str(f) for f in CANDIDATE_DIRS)
+    raise FileNotFoundError(
+        "공지 PDF를 찾을 수 없습니다. 아래 폴더를 확인했습니다:\n" + checked
+    )
 
 documents = []
 
 for pdf_file in pdf_files:
 
-    loader = PyPDFLoader(
-        str(pdf_file)
-    )
+    loader = PyPDFLoader(str(pdf_file))
 
     pages = loader.load()
 
     for page in pages:
-        page.metadata["file_name"] = ???????????????????????????
+        page.metadata["file_name"] = pdf_file.name
 
     documents.extend(pages)
 
@@ -47,19 +58,14 @@ splitter = RecursiveCharacterTextSplitter(
     chunk_overlap=100
 )
 
-chunks = splitter.split_documents(
-    documents
-)
+chunks = splitter.split_documents(documents)
 
 # --------------------------------------------------
 # 3. Embedding + Chroma
 # --------------------------------------------------
 
 embedding_model = HuggingFaceEmbeddings(
-    model_name=(
-        "sentence-transformers/"
-        "paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
 
 vectorstore = Chroma.from_documents(
@@ -69,9 +75,7 @@ vectorstore = Chroma.from_documents(
 )
 
 retriever = vectorstore.as_retriever(
-    search_kwargs={
-        "k": 3
-    }
+    search_kwargs={"k": 3}
 )
 
 # --------------------------------------------------
@@ -88,23 +92,16 @@ llm = ChatOllama(
 # 5. 대화형 RAG 함수
 # --------------------------------------------------
 
-def ask_chat_rag(
-    question,
-    chat_history
-):
+def ask_chat_rag(question, chat_history):
 
     # 직전 사용자 질문 찾기
     previous_question = ""
 
-    for message in reversed(
-        ??????????????????????????
-    ):
+    for message in reversed(chat_history):
 
         if message["role"] == "user":
 
-            previous_question = (
-                message["content"]
-            )
+            previous_question = message["content"]
 
             break
 
@@ -124,14 +121,9 @@ def ask_chat_rag(
         search_query = question
 
     # 문서 검색
-    docs = retriever.invoke(
-        search_query
-    )
+    docs = retriever.invoke(search_query)
 
-    context = "\n\n".join(
-        doc.page_content
-        for doc in docs
-    )
+    context = "\n\n".join(doc.page_content for doc in docs)
 
     # 이전 대화 만들기
     history_text = ""
@@ -170,9 +162,7 @@ def ask_chat_rag(
 {question}
 """
 
-    response = llm.invoke(
-        prompt
-    )
+    response = llm.invoke(prompt)
 
     return (
         response.content,
@@ -186,51 +176,35 @@ def ask_chat_rag(
 
 chat_history = []
 
-print(
-    "대화형 RAG Chatbot"
-)
+print("대화형 RAG Chatbot")
 
-print(
-    "종료하려면 exit를 입력하세요."
-)
+print("종료하려면 exit를 입력하세요.")
 
 while True:
 
-    question = input(
-        "\n사용자: "
-    )
+    question = input("\n사용자: ")
 
     if question.lower() == "exit":
         break
 
-    answer, docs, search_query = (
-        ask_chat_rag(
-            question,
-            chat_history
-        )
+    answer, docs, search_query = ask_chat_rag(
+        question,
+        chat_history
     )
 
-    print(
-        "\n[검색 Query]"
-    )
+    print("\n[검색 Query]")
 
-    print(
-        search_query
-    )
+    print(search_query)
 
-    print(
-        "\nAI:",
-        answer
-    )
+    print("\nAI:", answer)
 
     # 대화 저장
     chat_history.append({
-        "role": ????????,
-        "content": ????????????????????
+        "role": "user",
+        "content": question
     })
 
     chat_history.append({
         "role": "assistant",
         "content": answer
     })
-```

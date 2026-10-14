@@ -1,4 +1,3 @@
-```python
 from langchain_ollama import ChatOllama
 
 # 1. Ollama에서 실행할 모델 설정
@@ -18,4 +17,4 @@ print(question)
 
 print("\n답변:")
 print(response.content)
-```
+

@@ -1,4 +1,3 @@
-```python
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
@@ -13,28 +12,40 @@ from langchain_ollama import ChatOllama
 
 CURRENT_DIR = Path(__file__).resolve().parent
 
-DATA_DIR = (
-    CURRENT_DIR.parent
-    / "6w"
-    / "data"
-)
+# step3_basic_rag -> src -> 7w -> 저장소 루트
+SEVEN_W_DIR = CURRENT_DIR.parents[1]
+REPO_ROOT = CURRENT_DIR.parents[2]
+
+# PDF를 찾을 후보 폴더 (위에서부터 순서대로 확인)
+CANDIDATE_DIRS = [
+    REPO_ROOT / "6w" / "data",
+    SEVEN_W_DIR / "data",
+]
+
+DATA_DIR = None
+pdf_files = []
+
+for folder in CANDIDATE_DIRS:
+    files = sorted(folder.glob("공지*.pdf"))
+    if files:
+        DATA_DIR = folder
+        pdf_files = files
+        break
+
+if not pdf_files:
+    checked = "\n".join(str(f) for f in CANDIDATE_DIRS)
+    raise FileNotFoundError(
+        "공지 PDF를 찾을 수 없습니다. 아래 폴더를 확인했습니다:\n" + checked
+    )
 
 # --------------------------------------------------
 # 2. PDF 불러오기
 # --------------------------------------------------
 
-pdf_files = sorted(
-    DATA_DIR.glob("공지*.pdf")
-)
-
 documents = []
 
 for pdf_file in pdf_files:
-
-    loader = PyPDFLoader(
-        str(pdf_file)
-    )
-
+    loader = PyPDFLoader(str(pdf_file))
     pages = loader.load()
 
     for page in pages:
@@ -51,19 +62,14 @@ splitter = RecursiveCharacterTextSplitter(
     chunk_overlap=100
 )
 
-chunks = splitter.split_documents(
-    documents
-)
+chunks = splitter.split_documents(documents)
 
 # --------------------------------------------------
 # 4. Embedding
 # --------------------------------------------------
 
 embedding_model = HuggingFaceEmbeddings(
-    model_name=(
-        "sentence-transformers/"
-        "paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
 
 # --------------------------------------------------
@@ -77,9 +83,7 @@ vectorstore = Chroma.from_documents(
 )
 
 retriever = vectorstore.as_retriever(
-    search_kwargs={
-       ???????????????????????
-    }
+    search_kwargs={"k": 3}
 )
 
 # --------------------------------------------------
@@ -98,9 +102,8 @@ llm = ChatOllama(
 def ask_rag(question):
 
     # 관련 문서 검색
-    docs = retriever.invoke(
-        question
-    )
+    docs = retriever.invoke(question)
+
     print("\n========== 검색된 실제 내용 ==========")
 
     for i, doc in enumerate(docs, start=1):
@@ -112,10 +115,7 @@ def ask_rag(question):
     print("======================================")
 
     # 검색된 문서를 하나의 문자열로 결합
-    context = "\n\n".join(
-        doc.page_content
-        for doc in docs
-    )
+    context = "\n\n".join(doc.page_content for doc in docs)
 
     prompt = f"""
 당신은 제공된 공지 문서를 근거로 답하는 AI입니다.
@@ -130,16 +130,14 @@ def ask_rag(question):
 
 [검색된 문서]
 
-{????????????????}
+{context}
 
 [질문]
 
-{?????????????????}
+{question}
 """
 
-    response = llm.invoke(
-        prompt
-    )
+    response = llm.invoke(prompt)
 
     return response.content, docs
 
@@ -149,9 +147,7 @@ def ask_rag(question):
 
 question = "인턴십 신청 기간은 언제인가요?"
 
-answer, docs = ask_rag(
-    question
-)
+answer, docs = ask_rag(question)
 
 # --------------------------------------------------
 # 9. 결과
@@ -163,15 +159,7 @@ print(question)
 print("\n검색된 문서:")
 
 for doc in docs:
-
-    print(
-        "-",
-        doc.metadata.get(
-            ?????????????????????,
-            ?????????????????
-        )
-    )
+    print("-", doc.metadata.get("file_name", "확인 불가"))
 
 print("\nRAG 답변:")
 print(answer)
-```
